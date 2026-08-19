@@ -451,10 +451,6 @@ input:focus { border-color:var(--accent); }
           <span class="t-icon">✕</span> Segna X
         </button>
       </div>
-      <div class="sb-section hidden" id="victim-section">
-        <h3>Vittima</h3>
-        <button class="btn btn-danger btn-sm" style="width:100%" onclick="rivela()">☠️ Rivela assassino</button>
-      </div>
       <div style="margin-top:auto;display:flex;flex-direction:column;gap:.4rem">
         <button class="btn btn-ghost btn-sm" onclick="resetPlay()">Reset partita</button>
         <button class="btn btn-ghost btn-sm" onclick="gotoPhase(2)">← Modifica griglia</button>
@@ -945,7 +941,6 @@ function gotoPhase3() {
   renderPlayGrid();
   renderLegend();
   updateProgress();
-  document.getElementById('victim-section').classList.toggle('hidden', S.victimIdx === null);
   gotoPhase(3);
 }
 
@@ -1515,6 +1510,7 @@ function updateProgress() {
   }
   document.getElementById('prog-txt').textContent=`${filled} / ${total} celle`;
   document.getElementById('prog-fill').style.width=total?`${(filled/total)*100}%`:'0%';
+  if (S.victimIdx !== null) rivela();
 }
 
 function checkWin() {
