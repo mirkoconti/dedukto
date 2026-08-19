@@ -1443,10 +1443,13 @@ function handlePlay(r,c) {
 
   // Place mode
   if(S.placements[r][c]!==null) {
-    // Remove suspect and clear manual X from its entire row and col
+    // Remove suspect, clear manual X, and also remove victim if revealed
     S.placements[r][c]=null;
     for(let cc=0;cc<S.cols;cc++) S.manualX[r][cc]=false;
     for(let rr=0;rr<S.rows;rr++) S.manualX[rr][c]=false;
+    // Clear victim cell
+    for(let rr=0;rr<S.rows;rr++) for(let cc=0;cc<S.cols;cc++)
+      if(S.placements[rr][cc]===VICTIM_PLACED) S.placements[rr][cc]=null;
     refreshPlayGrid(); updateProgress(); return;
   }
 
