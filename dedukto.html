@@ -950,11 +950,13 @@ function updateCellVar() {
     ? window.innerWidth - 24
     : window.innerWidth - 235 - 60;
   const availH = isMobile
-    ? window.innerHeight - 56 - 24  // header ~56px + padding
+    ? window.innerHeight - 56 - 24
     : window.innerHeight - 56 - 48;
-  // Fit both dimensions: use the smaller of the two fits
-  const byW = Math.floor(availW / S.cols);
-  const byH = Math.floor(availH / S.rows);
+  // Account for row labels (22px) + gaps (2px each)
+  const gridW = availW - 22 - (S.cols - 1) * 2;
+  const gridH = availH - 20 - (S.rows - 1) * 2;
+  const byW = Math.floor(gridW / S.cols);
+  const byH = Math.floor(gridH / S.rows);
   const ideal = Math.min(byW, byH);
   const size = Math.min(72, Math.max(22, ideal));
   document.documentElement.style.setProperty('--cell', size+'px');
