@@ -475,7 +475,7 @@ input:focus { border-color:var(--accent); }
       <div class="setup-card">
         <h3>Sospettati</h3>
         <div id="susp-list"></div>
-        <button class="add-btn" onclick="addSuspect()">＋ Aggiungi sospettato</button>
+        <button class="add-btn" onclick="addSuspect()">＋ Aggiungi sospettato (l'ultimo è la vittima)</button>
       </div>
 
       <div class="setup-card">
@@ -923,8 +923,7 @@ function gotoPhase2() {
   if (names.length < 2) { alert('Aggiungi almeno 2 sospettati!'); return; }
   if (new Set(names).size !== names.length) { alert('Nomi duplicati!'); return; }
   S.suspects = names;
-  // clamp victimIdx in case something drifted
-  if (S.victimIdx !== null && S.victimIdx >= S.suspects.length) S.victimIdx = null;
+  S.victimIdx = S.suspects.length - 1; // last person is always the victim
   // Read canvas size
   S.rows = Math.max(3, Math.min(16, parseInt(document.getElementById('inp-rows').value)||8));
   S.cols = Math.max(3, Math.min(16, parseInt(document.getElementById('inp-cols').value)||8));
@@ -983,16 +982,24 @@ function resetPlay() {
 function renderSetup() {
   const list = document.getElementById('susp-list');
   list.innerHTML = '';
+  const victimIdx = S.suspects.length - 1;
   S.suspects.forEach((nm,i) => {
-    const isVictim = S.victimIdx === i;
+    const isVictim = i === victimIdx;
+    // Separator before victim row
+    if (isVictim) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'border-top:1px solid #e9456044;margin:.3rem 0 .5rem;display:flex;align-items:center;gap:.4rem;';
+      sep.innerHTML = `<span style="font-size:.62rem;text-transform:uppercase;letter-spacing:1px;color:#e94560;white-space:nowrap">☠ Vittima</span><div style="flex:1;height:1px;background:#e9456044"></div>`;
+      list.appendChild(sep);
+    }
     const d = document.createElement('div');
     d.className = 'susp-row';
+    if (isVictim) d.style.cssText = 'background:rgba(233,69,96,.07);border-radius:6px;padding:2px 4px;';
     d.innerHTML = `
-      <span class="susp-num">${i+1}</span>
-      <span class="susp-dot" style="background:${SUSP_COL[i%SUSP_COL.length]}"></span>
-      <input class="susp-inp" type="text" value="${esc(nm)}" placeholder="Sospettato ${i+1}">
-      <button class="victim-btn${isVictim?' victim-sel':''}" onclick="toggleVictim(${i})" title="${isVictim?'Rimuovi vittima':'Segna come vittima'}">☠️</button>
-      ${S.suspects.length>2?`<button class="rm-susp" onclick="rmSusp(${i})">✕</button>`:''}
+      <span class="susp-num" style="${isVictim?'color:#e94560':''}">${i+1}</span>
+      <span class="susp-dot" style="background:${isVictim?'#e94560':SUSP_COL[i%SUSP_COL.length]}"></span>
+      <input class="susp-inp" type="text" value="${esc(nm)}" placeholder="${isVictim?'Vittima':'Sospettato '+i}" style="${isVictim?'color:#e94560':''}">
+      ${!isVictim && S.suspects.length>2?`<button class="rm-susp" onclick="rmSusp(${i})">✕</button>`:''}
     `;
     list.appendChild(d);
   });
@@ -1000,21 +1007,16 @@ function renderSetup() {
 
 function addSuspect() {
   if (S.suspects.length>=9) { alert('Max 9!'); return; }
-  S.suspects.push('');
+  // Insert new suspect before the last (victim), so victim stays last
+  S.suspects.splice(S.suspects.length-1, 0, '');
   renderSetup();
-  document.querySelectorAll('.susp-inp')[S.suspects.length-1].focus();
+  document.querySelectorAll('.susp-inp')[S.suspects.length-2].focus();
 }
 
 function rmSusp(i) {
   if (S.suspects.length<=2) return;
-  if (S.victimIdx === i) S.victimIdx = null;
-  else if (S.victimIdx !== null && S.victimIdx > i) S.victimIdx--;
+  if (i === S.suspects.length-1) return; // can't remove the victim (last)
   S.suspects.splice(i,1);
-  renderSetup();
-}
-
-function toggleVictim(i) {
-  S.victimIdx = (S.victimIdx === i) ? null : i;
   renderSetup();
 }
 
@@ -1541,15 +1543,13 @@ function rivela() {
   refreshPlayGrid();
   closeSidebar();
 
-  // Find suspects sharing the same room
+  // Find suspects sharing the same room (roomId can be null = no room assigned)
   const victimRoomId = S.cells[r][c].roomId;
   const assassins = [];
-  if (victimRoomId) {
-    for (let rr=0;rr<S.rows;rr++) for (let cc=0;cc<S.cols;cc++) {
-      const p = S.placements[rr][cc];
-      if (p===null || p===VICTIM_PLACED) continue;
-      if (S.cells[rr][cc].roomId === victimRoomId) assassins.push(S.suspects[p]);
-    }
+  for (let rr=0;rr<S.rows;rr++) for (let cc=0;cc<S.cols;cc++) {
+    const p = S.placements[rr][cc];
+    if (p===null || p===VICTIM_PLACED) continue;
+    if (S.cells[rr][cc].roomId === victimRoomId) assassins.push(S.suspects[p]);
   }
 
   const title = document.getElementById('assassin-title');
