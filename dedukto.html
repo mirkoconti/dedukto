@@ -793,24 +793,37 @@ function computeElim() {
 }
 
 // Bounding box of all cells sharing the same objId (obstacle or overlay)
-function getObjBounds(objId) {
-  let minR=Infinity, minC=Infinity, maxR=-1, maxC=-1;
-  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) {
-    const cd=S.cells[r][c];
-    if(cd && (cd.obstId===objId || cd.overlayId===objId)) {
-      if(r<minR) minR=r; if(c<minC) minC=c;
-      if(r>maxR) maxR=r; if(c>maxC) maxC=c;
+// Returns the bounding box of the connected group of same-objId cells touching (r,c)
+function getConnectedBounds(r, c, objId) {
+  const key = (r,c) => r+','+c;
+  const isMatch = (r,c) => {
+    const cd = cell(r,c);
+    return cd && (cd.obstId===objId || cd.overlayId===objId);
+  };
+  const visited = new Set();
+  const queue = [[r,c]];
+  visited.add(key(r,c));
+  let minR=r, minC=c, maxR=r, maxC=c;
+  while (queue.length) {
+    const [cr,cc] = queue.shift();
+    if(cr<minR) minR=cr; if(cc<minC) minC=cc;
+    if(cr>maxR) maxR=cr; if(cc>maxC) maxC=cc;
+    for(const [nr,nc] of [[cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]]) {
+      if(!visited.has(key(nr,nc)) && isMatch(nr,nc)) {
+        visited.add(key(nr,nc));
+        queue.push([nr,nc]);
+      }
     }
   }
   return {minR, minC, totalR:maxR-minR+1, totalC:maxC-minC+1};
 }
 
-// Build a div with the SVG sliced to show only the [r,c] portion of the full object
+// Build a div with the SVG sliced to show only the [r,c] portion of the connected group
 function makeObjSVG(r, c, objId, wrapClass) {
   const wrap = document.createElement('div');
   wrap.className = wrapClass;
 
-  const b = getObjBounds(objId);
+  const b = getConnectedBounds(r, c, objId);
   const relR = r - b.minR;
   const relC = c - b.minC;
 
