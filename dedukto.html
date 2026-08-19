@@ -946,14 +946,17 @@ function gotoPhase3() {
 
 function updateCellVar() {
   const isMobile = window.innerWidth <= 700;
-  // Available space: screen width minus padding (and sidebar on desktop)
-  const available = isMobile
-    ? window.innerWidth - 40          // 20px padding each side
-    : window.innerWidth - 235 - 60;   // sidebar + padding
-  // Fit the largest dimension into available space, min 32px, max 72px
-  const maxDim = Math.max(S.rows, S.cols);
-  const ideal = Math.floor(available / maxDim);
-  const size = Math.min(72, Math.max(32, ideal));
+  const availW = isMobile
+    ? window.innerWidth - 24
+    : window.innerWidth - 235 - 60;
+  const availH = isMobile
+    ? window.innerHeight - 56 - 24  // header ~56px + padding
+    : window.innerHeight - 56 - 48;
+  // Fit both dimensions: use the smaller of the two fits
+  const byW = Math.floor(availW / S.cols);
+  const byH = Math.floor(availH / S.rows);
+  const ideal = Math.min(byW, byH);
+  const size = Math.min(72, Math.max(22, ideal));
   document.documentElement.style.setProperty('--cell', size+'px');
 }
 
@@ -1615,6 +1618,11 @@ S.objects = [...PRESET_OBSTACLES, ...PRESET_OVERLAYS];
 renderSetup();
 // Show room section by default (tool=room is not active at start, floor is)
 document.getElementById('room-section').classList.add('hidden');
+
+// Recalculate cell size on resize/orientation change
+window.addEventListener('resize', () => {
+  if (S.phase === 2 || S.phase === 3) updateCellVar();
+});
 </script>
 </body>
 </html>
