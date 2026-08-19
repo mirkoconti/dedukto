@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dedukto">
+<meta name="theme-color" content="#0a0a10">
+<link rel="manifest" href="manifest.json">
+<script>
+// Generate PWA icons programmatically — no external files needed
+function generateIcon(size) {
+  const c=document.createElement('canvas'); c.width=c.height=size;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#0a0a10'; ctx.fillRect(0,0,size,size);
+  ctx.fillStyle='#9b6ddf';
+  ctx.font=`bold ${size*.55}px sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('M',size/2,size/2);
+  return c.toDataURL('image/png');
+}
+window.addEventListener('DOMContentLoaded',()=>{
+  [192,512].forEach(sz=>{
+    const link=document.createElement('link');
+    link.rel='apple-touch-icon'; link.sizes=`${sz}x${sz}`;
+    link.href=generateIcon(sz);
+    document.head.appendChild(link);
+  });
+});
+</script>
+<title>Dedukto</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#0a0a10; --surface:#16161f; --surface2:#1e1e2b; --surface3:#252535;
+  --border:#2a2a3d; --accent:#9b6ddf; --text:#e8e8f0; --muted:#6868a0;
+  --red:#e94560; --cell:58px;
+}
+body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+
+/* ── Util ── */
+.hidden { display:none !important; }
+input[type="text"],input[type="number"] {
+  background:var(--surface3); border:1px solid var(--border); color:var(--text);
+  padding:.4rem .65rem; border-radius:6px; font-size:.875rem; outline:none; width:100%;
+  transition:border-color .15s;
+}
+input:focus { border-color:var(--accent); }
+.btn { padding:.4rem 1rem; border-radius:7px; border:1px solid transparent; cursor:pointer;
+  font-size:.85rem; font-weight:600; transition:opacity .15s,transform .1s; white-space:nowrap; }
+.btn:hover { opacity:.85; } .btn:active { transform:scale(.97); }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-ghost { background:transparent; color:var(--muted); border-color:var(--border); }
+.btn-danger { background:#330d1a; color:var(--red); border-color:#660020; }
+.btn-sm { padding:.28rem .65rem; font-size:.78rem; }
+
+/* ── Header ── */
+#header { display:flex; align-items:center; gap:.75rem; padding:.65rem 1.1rem;
+  background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0; }
+.logo { font-size:1.2rem; font-weight:900; letter-spacing:3px; color:var(--accent); }
+.subtitle { color:var(--muted); font-size:.75rem; }
+.spacer { flex:1; }
+.phase-dots { display:flex; gap:.35rem; }
+.pdot { width:9px; height:9px; border-radius:50%; background:var(--border); transition:background .3s; }
+.pdot.active { background:var(--accent); }
+
+/* ── Layout ── */
+#app { display:flex; flex:1; overflow:hidden; }
+#sidebar { width:235px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; padding:.9rem; gap:1rem; overflow-y:auto; }
+#main { flex:1; display:flex; align-items:center; justify-content:center; padding:1.5rem; overflow:auto; }
+
+.sb-section h3 { font-size:.68rem; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); margin-bottom:.55rem; }
+.sb-section { display:flex; flex-direction:column; gap:.3rem; }
+
+/* Tool buttons */
+.tool-btn { display:flex; align-items:center; gap:.55rem; padding:.45rem .6rem; border-radius:7px;
+  border:1px solid transparent; background:none; color:var(--text); cursor:pointer;
+  font-size:.85rem; transition:background .1s,border-color .1s; width:100%; text-align:left; }
+.tool-btn:hover { background:var(--surface2); }
+.tool-btn.active { background:var(--surface2); border-color:var(--accent); color:var(--accent); }
+.t-icon { width:20px; text-align:center; font-size:.95rem; flex-shrink:0; }
+
+/* Room/object items */
+.list-item { display:flex; align-items:center; gap:.45rem; padding:.38rem .5rem;
+  border-radius:7px; border:1px solid transparent; cursor:pointer; transition:background .1s;
+  margin-bottom:.18rem; }
+.list-item:hover { background:var(--surface2); }
+.list-item.selected { background:var(--surface2); border-color:var(--border); }
+.swatch { width:13px; height:13px; border-radius:3px; flex-shrink:0; }
+.list-name-input { background:none; border:none; color:var(--text); font-size:.83rem; flex:1; min-width:0; padding:0; outline:none; cursor:text; }
+.list-name-input:focus { border-bottom:1px solid var(--accent); }
+.del-btn { background:none; border:none; color:transparent; cursor:pointer; font-size:.8rem; padding:.1rem .2rem; border-radius:3px; }
+.list-item:hover .del-btn { color:var(--muted); } .del-btn:hover { color:var(--red) !important; }
+
+/* Setup (phase 1) */
+#phase1 { display:flex; flex-direction:column; align-items:center; gap:1.5rem; width:100%; max-width:480px; }
+.setup-card { background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:1.4rem; width:100%; }
+.setup-card h3 { font-size:.7rem; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:.9rem; }
+.susp-row { display:flex; align-items:center; gap:.45rem; margin-bottom:.45rem; }
+.susp-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.susp-num { color:var(--muted); font-size:.78rem; width:18px; text-align:right; flex-shrink:0; }
+.rm-susp { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.95rem; padding:.15rem .3rem; border-radius:4px; }
+.rm-susp:hover { color:var(--red); }
+.add-btn { display:flex; align-items:center; gap:.45rem; color:var(--muted); background:none;
+  border:1px dashed var(--border); width:100%; padding:.45rem; border-radius:7px;
+  cursor:pointer; font-size:.83rem; margin-top:.35rem; transition:all .15s; }
+.add-btn:hover { border-color:var(--accent); color:var(--accent); }
+.canvas-picker { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+.canvas-picker label { color:var(--muted); font-size:.83rem; }
+.canvas-picker input { width:52px; }
+.preset-btn { padding:.25rem .55rem; border-radius:5px; border:1px solid var(--border);
+  background:var(--surface3); color:var(--muted); cursor:pointer; font-size:.75rem; }
+.preset-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ── Grid ── */
+.grid-wrap { display:inline-block; }
+.grid-labels-top { display:flex; padding-left:22px; margin-bottom:2px; }
+.col-lbl { display:flex; align-items:center; justify-content:center;
+  width:var(--cell); font-size:.6rem; color:var(--muted); }
+.grid-row { display:flex; }
+.row-lbl { width:20px; display:flex; align-items:center; justify-content:center;
+  font-size:.6rem; color:var(--muted); flex-shrink:0; }
+.grid { display:inline-grid; gap:2px; background:var(--border); border:2px solid var(--border); border-radius:4px; overflow:hidden; user-select:none; }
+
+/* Cells */
+.cell { width:var(--cell); height:var(--cell); position:relative; cursor:crosshair;
+  display:flex; align-items:center; justify-content:center; overflow:visible; transition:filter .1s; }
+/* Void */
+.cell.void { background:var(--bg); overflow:hidden;
+  background-image:radial-gradient(circle, #1e1e30 1px, transparent 1px);
+  background-size:12px 12px; }
+.cell.void:hover { background-color:#0e0e1c; filter:none; }
+/* Active floor */
+.cell.active { background:var(--surface2); cursor:pointer; overflow:hidden; }
+.cell.active:hover { filter:brightness(1.2); }
+/* Obstacle (blocking) — floor-plan furniture style */
+.cell.obstacle { cursor:default; overflow:hidden; }
+.cell.obstacle:hover { filter:none; }
+/* Overlay (walkable obj) */
+.cell.overlay { cursor:pointer; }
+
+/* Furniture / obstacle rendering */
+/* SVG icons — sliced across multi-cell objects */
+.furn-svg {
+  position:absolute; inset:0; z-index:2; pointer-events:none;
+  overflow:hidden;
+}
+.furn-svg svg { width:100%; height:100%; display:block; }
+.overlay-svg {
+  position:absolute; inset:4px; z-index:1; pointer-events:none; opacity:0.50;
+  overflow:hidden;
+}
+.overlay-svg svg { width:100%; height:100%; display:block; }
+
+/* ── Windows — bar on cell edge (floor-plan style) ── */
+.win-bar {
+  position:absolute; background:#7dd3fc; border:1.5px solid #0284c7;
+  z-index:10; pointer-events:none; border-radius:2px;
+}
+/* Horizontal bar (N/S) */
+.win-bar.win-N { top:-4px; left:18%; right:18%; height:6px;
+  border-top-color:#38bdf8; border-bottom:none; border-radius:2px 2px 0 0; }
+.win-bar.win-S { bottom:-4px; left:18%; right:18%; height:6px;
+  border-bottom-color:#38bdf8; border-top:none; border-radius:0 0 2px 2px; }
+/* Vertical bar (W/E) */
+.win-bar.win-W { left:-4px; top:18%; bottom:18%; width:6px;
+  border-left-color:#38bdf8; border-right:none; border-radius:2px 0 0 2px; }
+.win-bar.win-E { right:-4px; top:18%; bottom:18%; width:6px;
+  border-right-color:#38bdf8; border-left:none; border-radius:0 2px 2px 0; }
+/* Inner glass line */
+.win-bar::after { content:''; position:absolute; background:rgba(255,255,255,.5);
+  inset:1px; border-radius:1px; }
+
+/* Play mode cell */
+.cell-placed { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; width:100%; height:100%; z-index:3; position:relative; }
+.cell-avatar {
+  width:calc(var(--cell) * 0.52); height:calc(var(--cell) * 0.52);
+  border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:calc(var(--cell) * 0.28); font-weight:900; color:#fff;
+  box-shadow:0 2px 8px rgba(0,0,0,.45);
+}
+.cell-pname { font-size:.48rem; text-align:center; color:rgba(255,255,255,.85); line-height:1.1; max-width:calc(var(--cell) - 6px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* X cross-out for eliminated rows/cols */
+.cell-x {
+  position:absolute; inset:0; z-index:4; pointer-events:none;
+  display:flex; align-items:center; justify-content:center;
+}
+.cell-x::before, .cell-x::after {
+  content:''; position:absolute;
+  width:calc(var(--cell) * 0.55); height:2px;
+  background:rgba(233,69,96,.65);
+  border-radius:2px;
+}
+.cell-x::before { transform:rotate(45deg); }
+.cell-x::after  { transform:rotate(-45deg); }
+/* Row/col highlight tint for placed suspect's lane */
+.cell.elim-lane { background-image:repeating-linear-gradient(
+  -45deg, rgba(233,69,96,.04) 0, rgba(233,69,96,.04) 3px, transparent 3px, transparent 9px
+); }
+/* Manual X — amber instead of red */
+.cell-x-manual::before, .cell-x-manual::after {
+  background:rgba(251,191,36,.75) !important;
+}
+
+/* Legend */
+.leg-item { display:flex; align-items:center; gap:.5rem; font-size:.82rem; margin-bottom:.3rem; }
+.leg-av { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.65rem; font-weight:700; flex-shrink:0; }
+.leg-sw { width:13px; height:13px; border-radius:3px; flex-shrink:0; }
+
+/* Progress */
+.prog-box { background:var(--surface2); border-radius:8px; padding:.6rem .7rem; font-size:.78rem; color:var(--muted); }
+.prog-bar { height:4px; background:var(--border); border-radius:2px; margin-top:.45rem; overflow:hidden; }
+.prog-fill { height:100%; background:var(--accent); border-radius:2px; transition:width .3s; }
+
+/* Popup */
+#popup-overlay { position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.7); backdrop-filter:blur(5px);
+  display:flex; align-items:center; justify-content:center; }
+.popup { background:var(--surface); border:1px solid var(--border); border-radius:15px; padding:1.4rem;
+  min-width:250px; max-width:370px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+.popup h3 { font-size:.7rem; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:.9rem; }
+.popup-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:.45rem; }
+.susp-btn { display:flex; align-items:center; gap:.45rem; padding:.45rem .65rem; border-radius:8px;
+  border:1px solid var(--border); background:var(--surface2); color:var(--text); cursor:pointer;
+  transition:all .15s; font-size:.8rem; }
+.susp-btn:hover:not(:disabled) { border-color:var(--accent); background:rgba(155,109,223,.1); }
+.susp-btn:disabled { opacity:.28; cursor:not-allowed; }
+.susp-btn .av { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.65rem; font-weight:700; color:#fff; flex-shrink:0; }
+
+/* Add-object modal */
+#obj-modal { position:fixed; inset:0; z-index:300; background:rgba(0,0,0,.7); backdrop-filter:blur(4px);
+  display:flex; align-items:center; justify-content:center; }
+.obj-modal-box { background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:1.4rem; width:300px; }
+.obj-modal-box h3 { font-size:.85rem; font-weight:700; margin-bottom:1rem; }
+.form-row { margin-bottom:.75rem; }
+.form-row label { display:block; font-size:.75rem; color:var(--muted); margin-bottom:.3rem; }
+.emoji-picker { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.4rem; }
+.ep-opt { font-size:1.1rem; cursor:pointer; padding:.15rem .25rem; border-radius:5px; border:2px solid transparent; transition:border-color .1s; }
+.ep-opt:hover,.ep-opt.sel { border-color:var(--accent); }
+.form-actions { display:flex; gap:.5rem; margin-top:1rem; }
+
+/* Win */
+#win-overlay { position:fixed; inset:0; z-index:400; background:rgba(0,0,0,.82); backdrop-filter:blur(6px);
+  display:flex; align-items:center; justify-content:center; }
+.win-card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:2.2rem 2.8rem; text-align:center; }
+.win-card h2 { font-size:1.8rem; color:#4ade80; margin-bottom:.4rem; }
+.win-card p { color:var(--muted); margin-bottom:1.3rem; }
+.win-btns { display:flex; gap:.65rem; justify-content:center; }
+
+/* ── Mobile sidebar toggle ── */
+#sb-toggle {
+  display:none; background:none; border:none; color:var(--text);
+  font-size:1.3rem; cursor:pointer; padding:.2rem .4rem;
+}
+#sidebar { transition: transform .25s ease; }
+
+/* ── Mobile responsive ── */
+@media (max-width: 680px) {
+  #sb-toggle { display:block; }
+
+  #sidebar {
+    position:fixed; top:0; left:0; bottom:0; z-index:100;
+    transform:translateX(-100%);
+    box-shadow:4px 0 24px rgba(0,0,0,.5);
+    padding-top:3.5rem;
+  }
+  #sidebar.open { transform:translateX(0); }
+
+  #sb-overlay {
+    display:none; position:fixed; inset:0; z-index:99;
+    background:rgba(0,0,0,.5);
+  }
+  #sidebar.open ~ #sb-overlay { display:block; }
+
+  #app { flex-direction:column; }
+  #main { padding:.75rem; }
+
+  /* Smaller cells on mobile */
+  :root { --cell:44px; }
+
+  /* Stack setup cards */
+  #phase1 { gap:1rem; }
+  .setup-card { padding:1rem; }
+
+  /* Larger touch targets */
+  .btn { padding:.55rem 1rem; min-height:40px; }
+  .tool-btn { padding:.55rem .6rem; min-height:40px; }
+  .list-item { padding:.5rem .55rem; min-height:40px; }
+  .susp-btn { padding:.55rem .65rem; min-height:44px; }
+  .cell { touch-action:none; }
+
+  /* Popup full-width on mobile */
+  .popup { min-width:90vw; max-width:95vw; }
+  .popup-grid { grid-template-columns:repeat(auto-fill,minmax(85px,1fr)); }
+
+  /* Win card compact */
+  .win-card { padding:1.5rem 1.2rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="header">
+  <button id="sb-toggle" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+  <div><div class="logo">DEDUKTO</div><div class="subtitle">Playground</div></div>
+  <div class="spacer"></div>
+  <div class="phase-dots">
+    <div class="pdot active" id="dot1"></div>
+    <div class="pdot" id="dot2"></div>
+    <div class="pdot" id="dot3"></div>
+  </div>
+</div>
+
+<div id="sb-overlay" onclick="toggleSidebar()"></div>
+<div id="app">
+  <!-- Sidebar -->
+  <div id="sidebar">
+
+    <!-- SB Phase 1 -->
+    <div id="sb1">
+      <div class="sb-section">
+        <h3>Guida</h3>
+        <p style="font-size:.78rem;color:var(--muted);line-height:1.5">Inserisci i sospettati e la dimensione della planimetria.<br>La griglia non deve essere quadrata.</p>
+      </div>
+    </div>
+
+    <!-- SB Phase 2 -->
+    <div id="sb2" class="hidden">
+
+      <div class="sb-section">
+        <h3>Strumento</h3>
+        <button class="tool-btn active" id="tb-floor" onclick="selTool('floor')">
+          <span class="t-icon">✏️</span> Disegna pavimento
+        </button>
+        <button class="tool-btn" id="tb-erase" onclick="selTool('erase')">
+          <span class="t-icon">🗑️</span> Cancella cella
+        </button>
+        <button class="tool-btn" id="tb-room" onclick="selTool('room')">
+          <span class="t-icon">🎨</span> Dipingi stanza
+        </button>
+        <button class="tool-btn" id="tb-window" onclick="selTool('window')">
+          <span class="t-icon">🪟</span> Finestra
+        </button>
+        <button class="tool-btn" id="tb-obstacle" onclick="selTool('obstacle')">
+          <span class="t-icon">🚧</span> Ingombro
+        </button>
+        <button class="tool-btn" id="tb-overlay" onclick="selTool('overlay')">
+          <span class="t-icon">🛋️</span> Oggetto calpestabile
+        </button>
+        <button class="tool-btn" id="tb-clear" onclick="selTool('clear')">
+          <span class="t-icon">✕</span> Pulisci cella
+        </button>
+      </div>
+
+      <div class="sb-section" id="room-section">
+        <h3>Stanze</h3>
+        <div id="room-list"></div>
+        <button class="add-btn" onclick="addRoom()">＋ Nuova stanza</button>
+      </div>
+
+      <div class="sb-section hidden" id="obstacle-section">
+        <h3>Ingombri</h3>
+        <div id="obstacle-list"></div>
+      </div>
+
+      <div class="sb-section hidden" id="overlay-section">
+        <h3>Oggetti calpestabili</h3>
+        <div id="overlay-list"></div>
+      </div>
+
+    </div>
+
+    <!-- SB Phase 3 -->
+    <div id="sb3" class="hidden">
+      <div class="sb-section">
+        <h3>Sospettati</h3>
+        <div id="legend-suspects"></div>
+      </div>
+      <div class="sb-section">
+        <h3>Stanze</h3>
+        <div id="legend-rooms"></div>
+      </div>
+      <div class="sb-section">
+        <h3>Oggetti</h3>
+        <div id="legend-objects"></div>
+      </div>
+      <div class="sb-section">
+        <div class="prog-box">
+          <div id="prog-txt">0 / 0 celle</div>
+          <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="sb-section">
+        <h3>Modalità clic</h3>
+        <button class="tool-btn active" id="play-mode-place" onclick="setPlayMode('place')">
+          <span class="t-icon">🕵️</span> Posiziona
+        </button>
+        <button class="tool-btn" id="play-mode-mark" onclick="setPlayMode('mark')">
+          <span class="t-icon">✕</span> Segna X
+        </button>
+      </div>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:.4rem">
+        <button class="btn btn-ghost btn-sm" onclick="resetPlay()">Reset partita</button>
+        <button class="btn btn-ghost btn-sm" onclick="gotoPhase(2)">← Modifica griglia</button>
+        <button class="btn btn-danger btn-sm" onclick="restartAll()">Ricomincia da capo</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+    <!-- Phase 1 -->
+    <div id="phase1">
+      <div style="text-align:center">
+        <div style="font-size:.9rem;color:var(--muted)">Configura la tua scena del crimine</div>
+      </div>
+
+      <div class="setup-card">
+        <h3>Sospettati</h3>
+        <div id="susp-list"></div>
+        <button class="add-btn" onclick="addSuspect()">＋ Aggiungi sospettato</button>
+      </div>
+
+      <div class="setup-card">
+        <h3>Dimensioni planimetria</h3>
+        <div class="canvas-picker">
+          <label>Righe</label>
+          <input type="number" id="inp-rows" value="8" min="3" max="16" style="width:52px">
+          <label>Colonne</label>
+          <input type="number" id="inp-cols" value="8" min="3" max="16" style="width:52px">
+        </div>
+        <div style="margin-top:.65rem;display:flex;gap:.35rem;flex-wrap:wrap">
+          <span style="font-size:.75rem;color:var(--muted);align-self:center">Preset:</span>
+          <button class="preset-btn" onclick="setCanvas(6,6)">6×6</button>
+          <button class="preset-btn" onclick="setCanvas(8,8)">8×8</button>
+          <button class="preset-btn" onclick="setCanvas(8,12)">8×12</button>
+          <button class="preset-btn" onclick="setCanvas(10,10)">10×10</button>
+          <button class="preset-btn" onclick="setCanvas(12,12)">12×12</button>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" style="font-size:.95rem;padding:.6rem 2rem" onclick="gotoPhase2()">
+        Disegna la planimetria →
+      </button>
+    </div>
+
+    <!-- Phase 2 -->
+    <div id="phase2" class="hidden">
+      <div>
+        <div id="builder-grid-wrap"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="fillAllCells()">⬛ Riempi tutto</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearGrid()">Pulisci tutto</button>
+          <button class="btn btn-primary" onclick="gotoPhase3()">Inizia il gioco →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 3 -->
+    <div id="phase3" class="hidden">
+      <div id="play-grid-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Suspect popup -->
+<div id="popup-overlay" class="hidden" onclick="if(event.target===this)closePopup()">
+  <div class="popup">
+    <h3 id="popup-title">Posiziona sospettato</h3>
+    <div class="popup-grid" id="popup-grid"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:.75rem" onclick="closePopup()">Annulla</button>
+  </div>
+</div>
+
+
+<!-- Win -->
+<div id="win-overlay" class="hidden">
+  <div class="win-card">
+    <h2>🎉 Completo!</h2>
+    <p>Tutti i sospettati sono stati posizionati.</p>
+    <div class="win-btns">
+      <button class="btn btn-ghost" onclick="document.getElementById('win-overlay').classList.add('hidden');resetPlay()">Ancora</button>
+      <button class="btn btn-primary" onclick="document.getElementById('win-overlay').classList.add('hidden');restartAll()">Nuova partita</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════════════
+const ROOM_PAL  = ['#7c3aed','#c0392b','#2563eb','#059669','#d97706','#db2777','#0891b2','#ea580c','#4f46e5','#16a085'];
+const SUSP_COL  = ['#e94560','#7c3aed','#2563eb','#059669','#d97706','#db2777','#0891b2','#ea580c','#4f46e5','#65a30d'];
+// Furniture color palettes (warm muted tones)
+const OBS_COLORS = ['#6B4F2E','#3D5C3D','#2E4A5C','#5C4A2E','#3D2E5C','#5C2E3D','#4A5C2E','#2E3D4A'];
+const OVR_COLORS = ['#8B6F4E','#6E8B6B','#4E6E8B','#8B7A4E','#6B4E8B','#8B4E6B','#4E8B6E','#7A8B4E'];
+
+// ── Predefined objects (fixed, always available) ──
+const PRESET_OBSTACLES = [
+  {id:'obs_tavolo',  name:'Tavolo',   emoji:'🪵', type:'obstacle', color:'#6B4F2E'},
+  {id:'obs_scaffale',name:'Scaffale', emoji:'📚', type:'obstacle', color:'#4A3728'},
+  {id:'obs_tv',      name:'TV',       emoji:'📺', type:'obstacle', color:'#2E3D4A'},
+  {id:'obs_pianta',  name:'Pianta',   emoji:'🪴', type:'obstacle', color:'#3D5C3D'},
+];
+const PRESET_OVERLAYS = [
+  {id:'ovr_tappeto', name:'Tappeto',  emoji:'🏮', type:'overlay',  color:'#8B4E6B'},
+  {id:'ovr_letto',   name:'Letto',    emoji:'🛏️', type:'overlay',  color:'#4E6E8B'},
+  {id:'ovr_sedia',   name:'Sedia',    emoji:'🪑', type:'overlay',  color:'#8B7A4E'},
+];
+
+// ── SVG icons for objects (floor-plan style) ──
+const OBJ_SVG = {
+
+// Tavolo: seamless wood tile — no corner legs, works for any shape
+obs_tavolo: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100" height="100" fill="#B08C5A"/>
+  <line x1="0" y1="18" x2="100" y2="22" stroke="#7A5C30" stroke-width="2" opacity="0.35"/>
+  <line x1="0" y1="38" x2="100" y2="34" stroke="#7A5C30" stroke-width="1.2" opacity="0.25"/>
+  <line x1="0" y1="55" x2="100" y2="59" stroke="#7A5C30" stroke-width="2.5" opacity="0.3"/>
+  <line x1="0" y1="75" x2="100" y2="71" stroke="#7A5C30" stroke-width="1.5" opacity="0.28"/>
+  <line x1="0" y1="91" x2="100" y2="95" stroke="#7A5C30" stroke-width="1" opacity="0.2"/>
+  <rect x="0" y="0" width="100" height="100" fill="rgba(255,255,255,0.06)"/>
+</svg>`,
+
+obs_scaffale: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="4" y="4" width="92" height="92" rx="4" fill="#3E2C1E" stroke="#1E0E06" stroke-width="4"/>
+  <rect x="4" y="37" width="92" height="7" fill="#1E0E06"/>
+  <rect x="4" y="64" width="92" height="7" fill="#1E0E06"/>
+  <rect x="8"  y="71" width="9"  height="19" rx="1" fill="#c0392b"/>
+  <rect x="19" y="73" width="8"  height="17" rx="1" fill="#2563eb"/>
+  <rect x="29" y="71" width="7"  height="19" rx="1" fill="#059669"/>
+  <rect x="38" y="72" width="10" height="18" rx="1" fill="#d97706"/>
+  <rect x="50" y="71" width="8"  height="19" rx="1" fill="#7c3aed"/>
+  <rect x="60" y="73" width="9"  height="17" rx="1" fill="#db2777"/>
+  <rect x="71" y="71" width="9"  height="19" rx="1" fill="#0891b2"/>
+  <rect x="82" y="72" width="8"  height="18" rx="1" fill="#c0392b"/>
+  <rect x="8"  y="44" width="10" height="16" rx="1" fill="#2563eb"/>
+  <rect x="20" y="46" width="8"  height="14" rx="1" fill="#059669"/>
+  <rect x="30" y="44" width="9"  height="16" rx="1" fill="#c0392b"/>
+  <rect x="41" y="45" width="8"  height="15" rx="1" fill="#d97706"/>
+  <rect x="51" y="44" width="10" height="16" rx="1" fill="#7c3aed"/>
+  <rect x="63" y="46" width="9"  height="14" rx="1" fill="#0891b2"/>
+  <rect x="74" y="44" width="9"  height="16" rx="1" fill="#db2777"/>
+  <rect x="8"  y="10" width="9"  height="21" rx="1" fill="#059669"/>
+  <rect x="19" y="12" width="10" height="19" rx="1" fill="#c0392b"/>
+  <rect x="31" y="10" width="8"  height="21" rx="1" fill="#d97706"/>
+  <rect x="41" y="11" width="9"  height="20" rx="1" fill="#2563eb"/>
+  <rect x="52" y="10" width="9"  height="21" rx="1" fill="#7c3aed"/>
+  <rect x="63" y="12" width="8"  height="19" rx="1" fill="#db2777"/>
+  <rect x="73" y="10" width="9"  height="21" rx="1" fill="#0891b2"/>
+  <rect x="84" y="11" width="8"  height="20" rx="1" fill="#c0392b"/>
+</svg>`,
+
+obs_tv: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="35" y="82" width="30" height="8" rx="4" fill="#2a2a2a"/>
+  <rect x="44" y="74" width="12" height="11" rx="1" fill="#333"/>
+  <rect x="3" y="12" width="94" height="64" rx="7" fill="#1a1a1a" stroke="#3a3a3a" stroke-width="3"/>
+  <rect x="9" y="18" width="82" height="52" rx="4" fill="#0d0d0d"/>
+  <rect x="12" y="21" width="76" height="46" rx="3" fill="#0e2244"/>
+  <polygon points="14,23 36,23 24,42" fill="white" opacity="0.07"/>
+  <polygon points="16,64 30,64 16,55" fill="white" opacity="0.04"/>
+  <line x1="12" y1="21" x2="88" y2="67" stroke="white" stroke-width="0.5" opacity="0.04"/>
+  <circle cx="18" cy="70" r="2.5" fill="#555"/>
+  <circle cx="82" cy="70" r="2.5" fill="#555"/>
+  <rect x="42" y="76" width="16" height="3" rx="1.5" fill="#444"/>
+</svg>`,
+
+obs_pianta: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <path d="M32 80 L36 95 L64 95 L68 80 Z" fill="#C1440E"/>
+  <rect x="28" y="72" width="44" height="11" rx="5" fill="#A0360C"/>
+  <ellipse cx="50" cy="68" rx="21" ry="7" fill="#3D1F0A"/>
+  <ellipse cx="50" cy="44" rx="26" ry="28" fill="#2E7D32"/>
+  <ellipse cx="30" cy="54" rx="16" ry="20" fill="#388E3C" transform="rotate(-15 30 54)"/>
+  <ellipse cx="70" cy="54" rx="16" ry="20" fill="#388E3C" transform="rotate(15 70 54)"/>
+  <ellipse cx="50" cy="32" rx="16" ry="18" fill="#43A047"/>
+  <ellipse cx="50" cy="44" rx="8" ry="10" fill="#66BB6A" opacity="0.5"/>
+  <ellipse cx="44" cy="38" rx="4" ry="5" fill="#81C784" opacity="0.4"/>
+</svg>`,
+
+ovr_tappeto: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="3" width="94" height="94" rx="6" fill="#8B1E3F"/>
+  <rect x="9" y="9" width="82" height="82" rx="4" fill="none" stroke="#E8B84B" stroke-width="3"/>
+  <rect x="15" y="15" width="70" height="70" rx="3" fill="none" stroke="#E8B84B" stroke-width="1.5"/>
+  <polygon points="50,20 80,50 50,80 20,50" fill="none" stroke="#E8B84B" stroke-width="2"/>
+  <ellipse cx="50" cy="50" rx="9" ry="9" fill="#E8B84B" opacity="0.35"/>
+  <circle cx="21" cy="21" r="4" fill="#E8B84B" opacity="0.6"/>
+  <circle cx="79" cy="21" r="4" fill="#E8B84B" opacity="0.6"/>
+  <circle cx="21" cy="79" r="4" fill="#E8B84B" opacity="0.6"/>
+  <circle cx="79" cy="79" r="4" fill="#E8B84B" opacity="0.6"/>
+  <line x1="50" y1="9" x2="50" y2="91" stroke="#E8B84B" stroke-width="1" opacity="0.2"/>
+  <line x1="9" y1="50" x2="91" y2="50" stroke="#E8B84B" stroke-width="1" opacity="0.2"/>
+</svg>`,
+
+// Letto singola cella (fallback)
+ovr_letto: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100" height="28" fill="#7B5B3A"/>
+  <rect x="0" y="28" width="100" height="72" fill="#DDD0C0"/>
+  <rect x="0" y="55" width="100" height="45" fill="#5C7FA0"/>
+  <path d="M0 56 Q25 62 50 56 Q75 50 100 56" fill="none" stroke="#3A5F80" stroke-width="2.5"/>
+  <rect x="6"  y="31" width="38" height="20" rx="5" fill="#F5EFE8" stroke="#C8B8A0" stroke-width="1.5"/>
+  <rect x="56" y="31" width="38" height="20" rx="5" fill="#F5EFE8" stroke="#C8B8A0" stroke-width="1.5"/>
+  <ellipse cx="25" cy="41" rx="10" ry="5" fill="rgba(255,255,255,0.32)"/>
+  <ellipse cx="75" cy="41" rx="10" ry="5" fill="rgba(255,255,255,0.32)"/>
+</svg>`,
+
+// Letto verticale — cella TESTA (in alto): testiera + cuscini
+ovr_letto_head_v: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100" height="100" fill="#DDD0C0"/>
+  <rect x="0" y="0" width="100" height="42" fill="#7B5B3A"/>
+  <rect x="5"  y="4" width="90" height="35" rx="4" fill="#8B6B4A"/>
+  <line x1="8" y1="12" x2="92" y2="12" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>
+  <line x1="8" y1="20" x2="92" y2="20" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+  <rect x="5" y="47" width="40" height="50" rx="6" fill="#F5EFE8" stroke="#C8B8A0" stroke-width="1.5"/>
+  <rect x="55" y="47" width="40" height="50" rx="6" fill="#F5EFE8" stroke="#C8B8A0" stroke-width="1.5"/>
+  <ellipse cx="25" cy="67" rx="12" ry="7" fill="rgba(255,255,255,0.35)"/>
+  <ellipse cx="75" cy="67" rx="12" ry="7" fill="rgba(255,255,255,0.35)"/>
+</svg>`,
+
+// Letto verticale — cella PIEDI (in basso): coperta + fondo
+ovr_letto_foot_v: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100" height="100" fill="#5C7FA0"/>
+  <path d="M0 0 Q25 7 50 0 Q75 -7 100 0" fill="none" stroke="#3A5F80" stroke-width="3"/>
+  <line x1="0" y1="28" x2="100" y2="28" stroke="#3A5F80" stroke-width="1" opacity="0.3"/>
+  <line x1="0" y1="56" x2="100" y2="56" stroke="#3A5F80" stroke-width="1" opacity="0.3"/>
+  <rect x="0" y="88" width="100" height="12" fill="#7B5B3A"/>
+  <line x1="0" y1="88" x2="100" y2="88" stroke="#5C3D2E" stroke-width="2"/>
+</svg>`,
+
+// Letto orizzontale — cella TESTA (a sinistra): testiera + cuscino
+ovr_letto_head_h: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100" height="100" fill="#DDD0C0"/>
+  <rect x="0" y="0" width="42" height="100" fill="#7B5B3A"/>
+  <rect x="4" y="5" width="35" height="90" rx="4" fill="#8B6B4A"/>
+  <line x1="12" y1="8" x2="12" y2="92" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>
+  <line x1="20" y1="8" x2="20" y2="92" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+  <rect x="47" y="5" width="50" height="90" rx="6" fill="#F5EFE8" stroke="#C8B8A0" stroke-width="1.5"/>
+  <ellipse cx="72" cy="50" rx="7" ry="28" fill="rgba(255,255,255,0.3)"/>
+</svg>`,
+
+// Letto orizzontale — cella PIEDI (a destra): coperta + fondo
+ovr_letto_foot_h: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100" height="100" fill="#5C7FA0"/>
+  <path d="M0 0 Q7 25 0 50 Q-7 75 0 100" fill="none" stroke="#3A5F80" stroke-width="3"/>
+  <line x1="28" y1="0" x2="28" y2="100" stroke="#3A5F80" stroke-width="1" opacity="0.3"/>
+  <line x1="56" y1="0" x2="56" y2="100" stroke="#3A5F80" stroke-width="1" opacity="0.3"/>
+  <rect x="88" y="0" width="12" height="100" fill="#7B5B3A"/>
+  <line x1="88" y1="0" x2="88" y2="100" stroke="#5C3D2E" stroke-width="2"/>
+</svg>`,
+
+ovr_sedia: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="14" y="5" width="72" height="18" rx="7" fill="#8B6344" stroke="#6B4F2E" stroke-width="3"/>
+  <rect x="9" y="29" width="82" height="63" rx="7" fill="#A07850" stroke="#6B4F2E" stroke-width="3"/>
+  <rect x="15" y="35" width="70" height="51" rx="5" fill="#B89060"/>
+  <rect x="22" y="42" width="56" height="37" rx="4" fill="rgba(255,255,255,0.08)"/>
+  <rect x="24" y="23" width="13" height="10" rx="2" fill="#6B4F2E"/>
+  <rect x="63" y="23" width="13" height="10" rx="2" fill="#6B4F2E"/>
+  <rect x="13" y="86" width="9" height="10" rx="3" fill="#5C3D2E" opacity="0.7"/>
+  <rect x="78" y="86" width="9" height="10" rx="3" fill="#5C3D2E" opacity="0.7"/>
+</svg>`,
+
+};
+
+// ════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════
+const S = {
+  phase: 1,
+  suspects: ['Alice','Bruno','Carlo','Diana','Elena'],
+  rows: 8, cols: 8,
+  // cells[r][c] = {active, roomId, window, obstId, overlayId}
+  cells: [],
+  rooms: [],   // {id, name, color}
+  objects: [], // populated at init with presets
+  placements: [], // [r][c] = suspectIdx|null
+  manualX: [],    // [r][c] = true|false — user-placed X marks
+  playMode: 'place', // 'place' | 'mark'
+  // UI
+  tool: 'floor',
+  activeRoomId: null,
+  activeObjId: null,
+  isDragging: false,
+  dragAction: null, // 'on'|'off' for floor tool
+};
+let _idCounter = 1;
+const uid = () => _idCounter++;
+
+
+// ════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const abbr = s => s.substring(0,3).toUpperCase();
+const getRoom = id => S.rooms.find(r => r.id === id);
+const getObj  = id => S.objects.find(o => o.id === id);
+const cell = (r,c) => S.cells[r] && S.cells[r][c];
+
+function initCells() {
+  S.cells = Array.from({length:S.rows}, () =>
+    Array.from({length:S.cols}, () => ({active:false, roomId:null, windows:[], obstId:null, overlayId:null}))
+  );
+}
+
+function initPlay() {
+  S.placements = Array.from({length:S.rows}, () => Array(S.cols).fill(null));
+  S.manualX    = Array.from({length:S.rows}, () => Array(S.cols).fill(false));
+}
+
+// Compute eliminated[r][c] = Set of suspect indices blocked by row/col rule
+function computeElim() {
+  const e = Array.from({length:S.rows}, () => Array.from({length:S.cols}, () => new Set()));
+  for (let r=0;r<S.rows;r++) for (let c=0;c<S.cols;c++) {
+    const p = S.placements[r][c];
+    if (p===null) continue;
+    for (let cc=0;cc<S.cols;cc++) if (cc!==c) e[r][cc].add(p);
+    for (let rr=0;rr<S.rows;rr++) if (rr!==r) e[rr][c].add(p);
+  }
+  return e;
+}
+
+// Bounding box of all cells sharing the same objId (obstacle or overlay)
+function getObjBounds(objId) {
+  let minR=Infinity, minC=Infinity, maxR=-1, maxC=-1;
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) {
+    const cd=S.cells[r][c];
+    if(cd && (cd.obstId===objId || cd.overlayId===objId)) {
+      if(r<minR) minR=r; if(c<minC) minC=c;
+      if(r>maxR) maxR=r; if(c>maxC) maxC=c;
+    }
+  }
+  return {minR, minC, totalR:maxR-minR+1, totalC:maxC-minC+1};
+}
+
+// Build a div with the SVG sliced to show only the [r,c] portion of the full object
+function makeObjSVG(r, c, objId, wrapClass) {
+  const wrap = document.createElement('div');
+  wrap.className = wrapClass;
+
+  const b = getObjBounds(objId);
+  const relR = r - b.minR;
+  const relC = c - b.minC;
+
+  // ── Tavolo: tileable wood tile — same SVG in every cell, no slicing ──
+  if (objId === 'obs_tavolo') {
+    wrap.innerHTML = OBJ_SVG['obs_tavolo'];
+    return wrap;
+  }
+
+  // ── Letto: head/foot halves based on orientation ──
+  if (objId === 'ovr_letto') {
+    const isMulti = b.totalR > 1 || b.totalC > 1;
+    if (isMulti) {
+      let key;
+      if (b.totalR >= b.totalC) {
+        // Vertical: first row = head, last row = foot (middle rows get foot tile)
+        key = relR === 0 ? 'ovr_letto_head_v' : 'ovr_letto_foot_v';
+      } else {
+        // Horizontal: first col = head, rest = foot
+        key = relC === 0 ? 'ovr_letto_head_h' : 'ovr_letto_foot_h';
+      }
+      wrap.innerHTML = OBJ_SVG[key];
+      return wrap;
+    }
+    // Single cell fallback
+    wrap.innerHTML = OBJ_SVG['ovr_letto'];
+    return wrap;
+  }
+
+  // ── Default: slice the SVG viewBox to show only this cell's portion ──
+  const src = OBJ_SVG[objId];
+  if (!src) { wrap.textContent = '?'; return wrap; }
+  const vx = +(relC / b.totalC * 100).toFixed(3);
+  const vy = +(relR / b.totalR * 100).toFixed(3);
+  const vw = +(100 / b.totalC).toFixed(3);
+  const vh = +(100 / b.totalR).toFixed(3);
+  wrap.innerHTML = src.replace(/viewBox="[^"]*"/, `viewBox="${vx} ${vy} ${vw} ${vh}"`);
+  return wrap;
+}
+
+// Compute inline style for an obstacle cell, merging borders with adjacent same-obj cells
+function obstacleStyle(r, c, obj) {
+  const col = obj.color || '#5C4B3A';
+  function adj(nr, nc) {
+    const n = cell(nr, nc);
+    return n && n.obstId === obj.id;
+  }
+  const bTop    = adj(r-1,c) ? `1px solid ${col}` : `2.5px solid ${col}dd`;
+  const bBottom = adj(r+1,c) ? `1px solid ${col}` : `2.5px solid ${col}dd`;
+  const bLeft   = adj(r,c-1) ? `1px solid ${col}` : `2.5px solid ${col}dd`;
+  const bRight  = adj(r,c+1) ? `1px solid ${col}` : `2.5px solid ${col}dd`;
+  return `background:${col};border-top:${bTop};border-bottom:${bBottom};border-left:${bLeft};border-right:${bRight};`;
+}
+
+// Is cell the "anchor" of a multi-cell obstacle? (top-left cell of the group)
+function isObjAnchor(r, c, objId) {
+  // Anchor = no same-obj cell to the top, and no same-obj cell to the left
+  const top  = cell(r-1, c);
+  const left = cell(r, c-1);
+  return !(top && top.obstId === objId) && !(left && left.obstId === objId);
+}
+
+// Is cell playable (can place a suspect)?
+function isPlayable(r,c) {
+  const cd = cell(r,c);
+  return cd && cd.active && !cd.obstId;
+}
+
+// Compute cell background/border CSS from room
+function cellRoomStyle(r,c) {
+  const cd = cell(r,c);
+  if (!cd || !cd.active || !cd.roomId) return '';
+  const rm = getRoom(cd.roomId);
+  if (!rm) return '';
+  const col = rm.color;
+  // Borders: thick on edges that border different room/void, thin on shared-room edges
+  function sameRoom(nr,nc) {
+    const n = cell(nr,nc);
+    return n && n.active && n.roomId === cd.roomId;
+  }
+  const b = {
+    top:    sameRoom(r-1,c) ? `1px solid ${col}22` : `3px solid ${col}`,
+    bottom: sameRoom(r+1,c) ? `1px solid ${col}22` : `3px solid ${col}`,
+    left:   sameRoom(r,c-1) ? `1px solid ${col}22` : `3px solid ${col}`,
+    right:  sameRoom(r,c+1) ? `1px solid ${col}22` : `3px solid ${col}`,
+  };
+  return `background:${col}28;border-top:${b.top};border-bottom:${b.bottom};border-left:${b.left};border-right:${b.right};`;
+}
+
+// ════════════════════════════════════════════════
+// PHASE NAV
+// ════════════════════════════════════════════════
+function gotoPhase(n) {
+  ['phase1','phase2','phase3'].forEach((id,i) => document.getElementById(id).classList.toggle('hidden',i+1!==n));
+  ['sb1','sb2','sb3'].forEach((id,i) => document.getElementById(id).classList.toggle('hidden',i+1!==n));
+  ['dot1','dot2','dot3'].forEach((id,i) => document.getElementById(id).classList.toggle('active',i<n));
+  S.phase = n;
+}
+
+function gotoPhase2() {
+  // Read suspects
+  const inputs = document.querySelectorAll('.susp-inp');
+  const names = [];
+  inputs.forEach(i => { const v=i.value.trim(); if(v) names.push(v); });
+  if (names.length < 2) { alert('Aggiungi almeno 2 sospettati!'); return; }
+  if (new Set(names).size !== names.length) { alert('Nomi duplicati!'); return; }
+  S.suspects = names;
+  // Read canvas size
+  S.rows = Math.max(3, Math.min(16, parseInt(document.getElementById('inp-rows').value)||8));
+  S.cols = Math.max(3, Math.min(16, parseInt(document.getElementById('inp-cols').value)||8));
+  // Init if first time or size changed
+  if (!S.cells.length || S.cells.length !== S.rows || S.cells[0].length !== S.cols) initCells();
+  if (S.rooms.length === 0) addRoom();
+  updateCellVar();
+  renderBuilderGrid();
+  renderSbRoomList();
+  renderSbObjList('obstacle');
+  renderSbObjList('overlay');
+  gotoPhase(2);
+}
+
+function gotoPhase3() {
+  initPlay();
+  S.playMode='place';
+  updateCellVar();
+  renderPlayGrid();
+  renderLegend();
+  updateProgress();
+  gotoPhase(3);
+}
+
+function updateCellVar() {
+  const maxDim = Math.max(S.rows, S.cols);
+  const size = maxDim <= 6 ? 70 : maxDim <= 8 ? 60 : maxDim <= 10 ? 52 : 44;
+  document.documentElement.style.setProperty('--cell', size+'px');
+}
+
+function restartAll() {
+  if (!confirm('Ricominciare? Perderai la configurazione.')) return;
+  S.rooms = []; S.cells = [];
+  S.objects = [...PRESET_OBSTACLES, ...PRESET_OVERLAYS];
+  _idCounter = 1;
+  gotoPhase(1);
+  renderSetup();
+}
+
+function resetPlay() { initPlay(); setPlayMode('place'); renderPlayGrid(); updateProgress(); }
+
+// ════════════════════════════════════════════════
+// PHASE 1 — SETUP
+// ════════════════════════════════════════════════
+function renderSetup() {
+  const list = document.getElementById('susp-list');
+  list.innerHTML = '';
+  S.suspects.forEach((nm,i) => {
+    const d = document.createElement('div');
+    d.className = 'susp-row';
+    d.innerHTML = `
+      <span class="susp-num">${i+1}</span>
+      <span class="susp-dot" style="background:${SUSP_COL[i%SUSP_COL.length]}"></span>
+      <input class="susp-inp" type="text" value="${esc(nm)}" placeholder="Sospettato ${i+1}">
+      ${S.suspects.length>2?`<button class="rm-susp" onclick="rmSusp(${i})">✕</button>`:''}
+    `;
+    list.appendChild(d);
+  });
+}
+
+function addSuspect() {
+  if (S.suspects.length>=9) { alert('Max 9!'); return; }
+  S.suspects.push('');
+  renderSetup();
+  document.querySelectorAll('.susp-inp')[S.suspects.length-1].focus();
+}
+
+function rmSusp(i) {
+  if (S.suspects.length<=2) return;
+  S.suspects.splice(i,1);
+  renderSetup();
+}
+
+function setCanvas(r,c) {
+  document.getElementById('inp-rows').value = r;
+  document.getElementById('inp-cols').value = c;
+}
+
+// ════════════════════════════════════════════════
+// PHASE 2 — BUILDER
+// ════════════════════════════════════════════════
+function selTool(tool) {
+  S.tool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tb-'+tool).classList.add('active');
+  // Show relevant panel
+  document.getElementById('room-section').classList.toggle('hidden', tool!=='room');
+  document.getElementById('obstacle-section').classList.toggle('hidden', tool!=='obstacle');
+  document.getElementById('overlay-section').classList.toggle('hidden', tool!=='overlay');
+}
+
+// ── Rooms ──
+function addRoom() {
+  const id = uid();
+  S.rooms.push({id, name:`Stanza ${S.rooms.length+1}`, color:ROOM_PAL[S.rooms.length%ROOM_PAL.length]});
+  S.activeRoomId = id;
+  renderSbRoomList();
+}
+
+function delRoom(id) {
+  S.rooms = S.rooms.filter(r=>r.id!==id);
+  for (let r=0;r<S.rows;r++) for (let c=0;c<S.cols;c++)
+    if (S.cells[r][c].roomId===id) S.cells[r][c].roomId=null;
+  if (S.activeRoomId===id) S.activeRoomId = S.rooms[0]?.id||null;
+  renderSbRoomList(); refreshBuilderGrid();
+}
+
+function selRoom(id) { S.activeRoomId=id; S.tool='room'; selTool('room'); renderSbRoomList(); }
+
+function renderSbRoomList() {
+  const list = document.getElementById('room-list');
+  list.innerHTML='';
+  S.rooms.forEach(rm => {
+    const d=document.createElement('div');
+    d.className='list-item'+(rm.id===S.activeRoomId?' selected':'');
+    d.onclick=()=>selRoom(rm.id);
+    d.innerHTML=`<div class="swatch" style="background:${rm.color}"></div>
+      <input class="list-name-input" type="text" value="${esc(rm.name)}" onclick="event.stopPropagation()" onchange="getRoom(${rm.id}).name=this.value;refreshBuilderGrid()">
+      <button class="del-btn" onclick="event.stopPropagation();delRoom(${rm.id})">✕</button>`;
+    list.appendChild(d);
+  });
+}
+
+// ── Objects ──
+function selObj(id) {
+  S.activeObjId=id;
+  const obj=getObj(id);
+  selTool(obj.type);
+  renderSbObjList(obj.type);
+}
+
+function renderSbObjList(type) {
+  const listId = type==='obstacle'?'obstacle-list':'overlay-list';
+  const list = document.getElementById(listId);
+  if(!list) return;
+  list.innerHTML='';
+  S.objects.filter(o=>o.type===type).forEach(obj=>{
+    const d=document.createElement('div');
+    d.className='list-item'+(obj.id===S.activeObjId?' selected':'');
+    d.onclick=()=>selObj(obj.id);
+    d.innerHTML=`<span style="font-size:.95rem">${obj.emoji}</span>
+      <span style="font-size:.83rem;flex:1">${esc(obj.name)}</span>`;
+    list.appendChild(d);
+  });
+}
+
+// ── Grid builder ──
+function fillAllCells() {
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) S.cells[r][c].active=true;
+  refreshBuilderGrid();
+}
+
+function clearGrid() {
+  if(!confirm('Pulire tutta la planimetria?')) return;
+  initCells();
+  refreshBuilderGrid();
+}
+
+function applyTool(r,c,isEnter) {
+  const cd = S.cells[r][c];
+  if (S.tool==='floor') {
+    if (!isEnter) {
+      S.dragAction = cd.active ? 'off' : 'on';
+      cd.active = !cd.active;
+      if (!cd.active) { cd.roomId=null; cd.windows=[]; cd.obstId=null; cd.overlayId=null; }
+    } else {
+      if (S.dragAction==='on') { cd.active=true; }
+      else { cd.active=false; cd.roomId=null; cd.windows=[]; cd.obstId=null; cd.overlayId=null; }
+    }
+  } else if (S.tool==='erase') {
+    cd.active=false; cd.roomId=null; cd.windows=[]; cd.obstId=null; cd.overlayId=null;
+  } else if (S.tool==='room') {
+    if (!cd.active) return;
+    if (!S.activeRoomId) { if(!isEnter) alert('Seleziona una stanza!'); return; }
+    cd.roomId = (!isEnter && cd.roomId===S.activeRoomId) ? null : S.activeRoomId;
+  } else if (S.tool==='obstacle') {
+    if (!cd.active) return;
+    if (!S.activeObjId) { if(!isEnter) alert('Seleziona o crea un ingombro!'); return; }
+    cd.overlayId=null;
+    cd.obstId = (!isEnter && cd.obstId===S.activeObjId) ? null : S.activeObjId;
+  } else if (S.tool==='overlay') {
+    if (!cd.active) return;
+    if (!S.activeObjId) { if(!isEnter) alert('Seleziona o crea un oggetto!'); return; }
+    cd.obstId=null;
+    cd.overlayId = (!isEnter && cd.overlayId===S.activeObjId) ? null : S.activeObjId;
+  } else if (S.tool==='clear') {
+    if (!cd.active) return;
+    cd.roomId=null; cd.windows=[]; cd.obstId=null; cd.overlayId=null;
+  }
+  updateOneBuilderCell(r,c);
+  // Update neighbors (for room border redraw)
+  [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([nr,nc])=>{
+    if(nr>=0&&nr<S.rows&&nc>=0&&nc<S.cols) updateOneBuilderCell(nr,nc);
+  });
+}
+
+// Detect which side of the cell was clicked and toggle window on that side
+function applyWindowTool(event, r, c) {
+  const cd = S.cells[r][c];
+  if (!cd.active) return;
+  const el = document.querySelector(`#builder-grid-wrap .grid [data-r="${r}"][data-c="${c}"]`);
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const x = (event.clientX - rect.left) / rect.width;
+  const y = (event.clientY - rect.top) / rect.height;
+  // Pick closest edge
+  const dists = {N:y, S:1-y, W:x, E:1-x};
+  const side = Object.entries(dists).sort((a,b)=>a[1]-b[1])[0][0];
+  const idx = cd.windows.indexOf(side);
+  if (idx >= 0) cd.windows.splice(idx, 1);
+  else cd.windows.push(side);
+  updateOneBuilderCell(r, c);
+}
+
+function updateOneBuilderCell(r,c) {
+  const grid = document.querySelector('#builder-grid-wrap .grid');
+  if(!grid) return;
+  const el = grid.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+  if(el) renderBuilderCell(el,r,c);
+}
+
+function renderBuilderCell(el,r,c) {
+  const cd = S.cells[r][c];
+  el.innerHTML='';
+  if (!cd.active) {
+    el.className='cell void'; el.style.cssText=''; return;
+  }
+
+  if (cd.obstId) {
+    const obj = getObj(cd.obstId);
+    el.className='cell obstacle';
+    el.style.cssText = obj ? obstacleStyle(r,c,obj) : '';
+    if (obj) el.appendChild(makeObjSVG(r, c, obj.id, 'furn-svg'));
+    cd.windows.forEach(dir=>{ const w=document.createElement('div'); w.className=`win-bar win-${dir}`; el.appendChild(w); });
+    return;
+  }
+
+  el.className='cell active';
+  el.style.cssText = cellRoomStyle(r,c);
+
+  if (cd.overlayId) {
+    const obj=getObj(cd.overlayId);
+    if (obj) el.appendChild(makeObjSVG(r, c, obj.id, 'overlay-svg'));
+  }
+
+  cd.windows.forEach(dir=>{ const w=document.createElement('div'); w.className=`win-bar win-${dir}`; el.appendChild(w); });
+}
+
+function renderBuilderGrid() {
+  const wrap = document.getElementById('builder-grid-wrap');
+  wrap.innerHTML='';
+
+  // Col labels
+  const topRow=document.createElement('div'); topRow.className='grid-labels-top';
+  for(let c=0;c<S.cols;c++) {
+    const lb=document.createElement('div'); lb.className='col-lbl';
+    lb.textContent=String.fromCharCode(65+c); topRow.appendChild(lb);
+  }
+  wrap.appendChild(topRow);
+
+  // Grid rows with row labels
+  const gridDiv=document.createElement('div'); gridDiv.className='grid';
+  gridDiv.style.gridTemplateColumns=`repeat(${S.cols},var(--cell))`;
+
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) {
+    const el=document.createElement('div');
+    el.dataset.r=r; el.dataset.c=c;
+    renderBuilderCell(el,r,c);
+    gridDiv.appendChild(el);
+  }
+
+  // Row labels on left using CSS grid overlay
+  const gridWrap2=document.createElement('div');
+  gridWrap2.style.cssText='display:flex;align-items:flex-start';
+  const rowLbls=document.createElement('div');
+  rowLbls.style.cssText=`display:flex;flex-direction:column;margin-right:2px`;
+  for(let r=0;r<S.rows;r++) {
+    const lb=document.createElement('div'); lb.className='row-lbl';
+    lb.style.height='var(--cell)'; lb.textContent=r+1;
+    rowLbls.appendChild(lb);
+  }
+  gridWrap2.appendChild(rowLbls);
+  gridWrap2.appendChild(gridDiv);
+  wrap.appendChild(gridWrap2);
+
+  // ── Mouse drag ──
+  gridDiv.addEventListener('mousedown', e=>{
+    const el=e.target.closest('[data-r]'); if(!el) return;
+    e.preventDefault(); S.isDragging=true;
+    if (S.tool==='window') applyWindowTool(e,+el.dataset.r,+el.dataset.c);
+    else applyTool(+el.dataset.r,+el.dataset.c,false);
+  });
+  gridDiv.addEventListener('mouseover', e=>{
+    if(!S.isDragging||S.tool==='window') return;
+    const el=e.target.closest('[data-r]'); if(el) applyTool(+el.dataset.r,+el.dataset.c,true);
+  });
+
+  // ── Touch drag ──
+  gridDiv.addEventListener('touchstart', e=>{
+    const t=e.touches[0];
+    const el=document.elementFromPoint(t.clientX,t.clientY)?.closest('[data-r]'); if(!el) return;
+    e.preventDefault(); S.isDragging=true;
+    if(S.tool==='window') applyWindowTool({clientX:t.clientX,clientY:t.clientY},+el.dataset.r,+el.dataset.c);
+    else applyTool(+el.dataset.r,+el.dataset.c,false);
+  },{passive:false});
+  gridDiv.addEventListener('touchmove', e=>{
+    if(!S.isDragging||S.tool==='window') return;
+    e.preventDefault();
+    const t=e.touches[0];
+    const el=document.elementFromPoint(t.clientX,t.clientY)?.closest('[data-r]');
+    if(el) applyTool(+el.dataset.r,+el.dataset.c,true);
+  },{passive:false});
+  gridDiv.addEventListener('touchend', ()=>{ S.isDragging=false; });
+}
+
+function refreshBuilderGrid() {
+  const grid=document.querySelector('#builder-grid-wrap .grid'); if(!grid) return;
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) {
+    const el=grid.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+    if(el) renderBuilderCell(el,r,c);
+  }
+}
+
+// ════════════════════════════════════════════════
+// PHASE 3 — PLAY
+// ════════════════════════════════════════════════
+function renderPlayGrid() {
+  const wrap=document.getElementById('play-grid-wrap');
+  wrap.innerHTML='';
+
+  // Col labels
+  const topRow=document.createElement('div'); topRow.className='grid-labels-top';
+  for(let c=0;c<S.cols;c++) {
+    const lb=document.createElement('div'); lb.className='col-lbl';
+    lb.textContent=String.fromCharCode(65+c); topRow.appendChild(lb);
+  }
+
+  const gridDiv=document.createElement('div'); gridDiv.className='grid';
+  gridDiv.style.gridTemplateColumns=`repeat(${S.cols},var(--cell))`;
+
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) {
+    const el=document.createElement('div');
+    el.dataset.r=r; el.dataset.c=c;
+    gridDiv.appendChild(el);
+  }
+
+  const gridWrap2=document.createElement('div');
+  gridWrap2.style.cssText='display:flex;align-items:flex-start';
+  const rowLbls=document.createElement('div');
+  rowLbls.style.cssText='display:flex;flex-direction:column;margin-right:2px';
+  for(let r=0;r<S.rows;r++) {
+    const lb=document.createElement('div'); lb.className='row-lbl';
+    lb.style.height='var(--cell)'; lb.textContent=r+1;
+    rowLbls.appendChild(lb);
+  }
+  gridWrap2.appendChild(rowLbls);
+  gridWrap2.appendChild(gridDiv);
+
+  const outerWrap=document.createElement('div');
+  outerWrap.appendChild(topRow);
+  outerWrap.appendChild(gridWrap2);
+  wrap.appendChild(outerWrap);
+
+  gridDiv.addEventListener('click', e=>{
+    if(S._touchHandled){S._touchHandled=false;return;}
+    const el=e.target.closest('[data-r]'); if(!el) return;
+    handlePlay(+el.dataset.r,+el.dataset.c);
+  });
+  gridDiv.addEventListener('touchend', e=>{
+    const t=e.changedTouches[0];
+    const el=document.elementFromPoint(t.clientX,t.clientY)?.closest('[data-r]'); if(!el) return;
+    e.preventDefault(); S._touchHandled=true;
+    handlePlay(+el.dataset.r,+el.dataset.c);
+  });
+
+  refreshPlayGrid();
+}
+
+function refreshPlayGrid() {
+  const grid=document.querySelector('#play-grid-wrap .grid'); if(!grid) return;
+  // Build set of (row, col) that are fully blocked (a suspect is placed in that row/col)
+  const blockedRows = new Set();
+  const blockedCols = new Set();
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) {
+    if(S.placements[r][c]!==null) { blockedRows.add(r); blockedCols.add(c); }
+  }
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) {
+    const el=grid.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+    if(el) renderPlayCell(el,r,c,blockedRows,blockedCols);
+  }
+}
+
+function renderPlayCell(el,r,c,blockedRows,blockedCols) {
+  const cd=S.cells[r][c];
+  el.innerHTML='';
+  if(!cd||!cd.active) { el.className='cell void'; el.style.cssText=''; return; }
+
+  // Obstacle cell
+  if(cd.obstId) {
+    const obj=getObj(cd.obstId);
+    el.className='cell obstacle';
+    el.style.cssText = obj ? obstacleStyle(r,c,obj) : '';
+    if(obj) el.appendChild(makeObjSVG(r, c, obj.id, 'furn-svg'));
+    cd.windows.forEach(dir=>{const w=document.createElement('div');w.className=`win-bar win-${dir}`;el.appendChild(w);});
+    return;
+  }
+
+  const placed=S.placements[r][c];
+  const isElimLane = placed===null && (blockedRows.has(r) || blockedCols.has(c));
+
+  let cls='cell active';
+  if(isElimLane) cls+=' elim-lane';
+  el.className=cls;
+  el.style.cssText = cellRoomStyle(r,c);
+
+  // Overlay watermark
+  if(cd.overlayId) {
+    const obj=getObj(cd.overlayId);
+    if(obj) el.appendChild(makeObjSVG(r, c, obj.id, 'overlay-svg'));
+  }
+
+  if(placed!==null) {
+    // Show suspect avatar
+    const col=SUSP_COL[placed%SUSP_COL.length];
+    el.style.cssText += `;background-color:${col}22;`;
+    const wrap=document.createElement('div'); wrap.className='cell-placed';
+    const av=document.createElement('div'); av.className='cell-avatar';
+    av.style.background=col;
+    av.textContent=S.suspects[placed][0].toUpperCase();
+    const nm=document.createElement('div'); nm.className='cell-pname'; nm.textContent=S.suspects[placed];
+    wrap.appendChild(av); wrap.appendChild(nm); el.appendChild(wrap);
+  } else if(isElimLane) {
+    // Auto X from sudoku rule
+    const x=document.createElement('div'); x.className='cell-x'; el.appendChild(x);
+  } else if(S.manualX[r] && S.manualX[r][c]) {
+    // Manual X placed by user
+    const x=document.createElement('div'); x.className='cell-x cell-x-manual'; el.appendChild(x);
+  }
+  // else: empty cell, blank floor
+
+  cd.windows.forEach(dir=>{const w=document.createElement('div');w.className=`win-bar win-${dir}`;el.appendChild(w);});
+}
+
+function setPlayMode(mode) {
+  S.playMode = mode;
+  document.getElementById('play-mode-place').classList.toggle('active', mode==='place');
+  document.getElementById('play-mode-mark').classList.toggle('active', mode==='mark');
+}
+
+function handlePlay(r,c) {
+  if(!isPlayable(r,c)) return;
+
+  if(S.playMode==='mark') {
+    // Toggle manual X (only on empty cells)
+    if(S.placements[r][c]!==null) return; // can't mark a placed cell
+    S.manualX[r][c] = !S.manualX[r][c];
+    refreshPlayGrid();
+    return;
+  }
+
+  // Place mode
+  if(S.placements[r][c]!==null) {
+    // Remove suspect and clear manual X from its entire row and col
+    S.placements[r][c]=null;
+    for(let cc=0;cc<S.cols;cc++) S.manualX[r][cc]=false;
+    for(let rr=0;rr<S.rows;rr++) S.manualX[rr][c]=false;
+    refreshPlayGrid(); updateProgress(); return;
+  }
+
+  openPopup(r,c);
+}
+
+// ── Popup ──
+function openPopup(r,c) {
+  // Collect which suspects are already placed somewhere in the grid
+  const placedAnywhere=new Set();
+  let rowOccupant=null, colOccupant=null;
+  for(let rr=0;rr<S.rows;rr++) for(let cc=0;cc<S.cols;cc++) {
+    const p=S.placements[rr][cc];
+    if(p===null) continue;
+    placedAnywhere.add(p);
+    if(rr===r && cc!==c) rowOccupant=p;
+    if(cc===c && rr!==r) colOccupant=p;
+  }
+
+  const cd=S.cells[r][c];
+  let ctx='';
+  if(cd.windows&&cd.windows.length) ctx+=` 🪟 Finestra`;
+  if(cd.overlayId){const o=getObj(cd.overlayId);if(o) ctx+=` ${o.emoji} ${o.name}`;}
+  if(getRoom(cd.roomId)) ctx+=` — ${getRoom(cd.roomId).name}`;
+
+  document.getElementById('popup-title').textContent=`[${String.fromCharCode(65+c)}${r+1}]${ctx}`;
+  const pg=document.getElementById('popup-grid'); pg.innerHTML='';
+
+  S.suspects.forEach((nm,i)=>{
+    // Disabled if: already placed anywhere, or row already has a suspect, or col already has a suspect
+    const disabled = placedAnywhere.has(i) || rowOccupant!==null || colOccupant!==null;
+    const btn=document.createElement('button');
+    btn.className='susp-btn'; btn.disabled=disabled;
+    btn.innerHTML=`<div class="av" style="background:${SUSP_COL[i%SUSP_COL.length]}">${nm[0].toUpperCase()}</div><span>${esc(nm)}</span>`;
+    btn.onclick=()=>{
+      S.placements[r][c]=i;
+      // Clear any manual X on this cell and on the newly blocked row/col
+      S.manualX[r][c]=false;
+      for(let cc=0;cc<S.cols;cc++) S.manualX[r][cc]=false;
+      for(let rr=0;rr<S.rows;rr++) S.manualX[rr][c]=false;
+      closePopup(); refreshPlayGrid(); updateProgress(); checkWin();
+    };
+    pg.appendChild(btn);
+  });
+
+  document.getElementById('popup-overlay').classList.remove('hidden');
+}
+
+function closePopup() { document.getElementById('popup-overlay').classList.add('hidden'); }
+
+// ── Progress & Win ──
+function updateProgress() {
+  let total=0,filled=0;
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) {
+    if(!isPlayable(r,c)) continue;
+    total++;
+    if(S.placements[r][c]!==null) filled++;
+  }
+  document.getElementById('prog-txt').textContent=`${filled} / ${total} celle`;
+  document.getElementById('prog-fill').style.width=total?`${(filled/total)*100}%`:'0%';
+}
+
+function checkWin() {
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++)
+    if(isPlayable(r,c)&&S.placements[r][c]===null) return;
+  document.getElementById('win-overlay').classList.remove('hidden');
+}
+
+// ── Legend ──
+function renderLegend() {
+  const ls=document.getElementById('legend-suspects'); ls.innerHTML='';
+  S.suspects.forEach((nm,i)=>{
+    const d=document.createElement('div'); d.className='leg-item';
+    d.innerHTML=`<div class="leg-av" style="background:${SUSP_COL[i%SUSP_COL.length]}">${nm[0].toUpperCase()}</div><span>${esc(nm)}</span>`;
+    ls.appendChild(d);
+  });
+
+  const lr=document.getElementById('legend-rooms'); lr.innerHTML='';
+  if(!S.rooms.length) { lr.innerHTML='<span style="color:var(--muted);font-size:.75rem">Nessuna stanza</span>'; }
+  S.rooms.forEach(rm=>{
+    const d=document.createElement('div'); d.className='leg-item';
+    d.innerHTML=`<div class="leg-sw" style="background:${rm.color}30;border:2px solid ${rm.color}"></div><span>${esc(rm.name)}</span>`;
+    lr.appendChild(d);
+  });
+
+  const lo=document.getElementById('legend-objects'); lo.innerHTML='';
+  if(!S.objects.length) { lo.innerHTML='<span style="color:var(--muted);font-size:.75rem">Nessun oggetto</span>'; }
+  S.objects.forEach(obj=>{
+    const d=document.createElement('div'); d.className='leg-item';
+    const badge=obj.type==='obstacle'?'🚫':'✅';
+    d.innerHTML=`<span>${obj.emoji}</span><span>${esc(obj.name)}</span><span style="font-size:.65rem;color:var(--muted)">${badge}</span>`;
+    lo.appendChild(d);
+  });
+}
+
+// ════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════
+document.addEventListener('mouseup', ()=>{ S.isDragging=false; });
+document.addEventListener('touchend', ()=>{ S.isDragging=false; });
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// Close sidebar when changing phase on mobile
+const _origGotoPhase = gotoPhase;
+function gotoPhase(n) {
+  _origGotoPhase(n);
+  document.getElementById('sidebar').classList.remove('open');
+}
+// Populate predefined objects
+S.objects = [...PRESET_OBSTACLES, ...PRESET_OVERLAYS];
+renderSetup();
+// Show room section by default (tool=room is not active at start, floor is)
+document.getElementById('room-section').classList.add('hidden');
+</script>
+</body>
+</html>
