@@ -143,6 +143,20 @@ input:focus { border-color:var(--accent); }
 .cell.overlay { cursor:pointer; }
 
 /* Furniture / obstacle rendering */
+/* ── Room label on grid ── */
+.room-label {
+  position:absolute;
+  top:3px; left:4px;
+  font-size:.48rem; font-weight:700; letter-spacing:.4px;
+  color:rgba(255,255,255,.9);
+  text-shadow:0 1px 3px rgba(0,0,0,.8);
+  pointer-events:none; z-index:5;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  max-width:calc(var(--cell) - 6px);
+  line-height:1;
+  text-transform:uppercase;
+}
+
 /* SVG icons — sliced across multi-cell objects */
 .furn-svg {
   position:absolute; inset:0; z-index:2; pointer-events:none;
@@ -282,15 +296,16 @@ input:focus { border-color:var(--accent); }
   }
   #sidebar.open { transform:translateX(0); }
 
-  #app { display:block; height:calc(100vh - 48px); overflow:hidden; }
+  #app { display:block; }
   #main {
-    height:100%; overflow:auto;
+    overflow:auto; -webkit-overflow-scrolling:touch;
     padding:.6rem;
     display:flex; align-items:flex-start; justify-content:center;
+    min-height:0;
   }
 
-  /* Celle più piccole */
-  :root { --cell:40px; }
+  /* Celle più piccole — dinamiche via JS, qui il minimo */
+  :root { --cell:38px; }
 
   /* Phase 1 setup */
   #phase1 { gap:.75rem; padding:.25rem 0; }
@@ -903,8 +918,15 @@ function gotoPhase3() {
 }
 
 function updateCellVar() {
+  const isMobile = window.innerWidth <= 700;
+  // Available space: screen width minus padding (and sidebar on desktop)
+  const available = isMobile
+    ? window.innerWidth - 40          // 20px padding each side
+    : window.innerWidth - 235 - 60;   // sidebar + padding
+  // Fit the largest dimension into available space, min 32px, max 72px
   const maxDim = Math.max(S.rows, S.cols);
-  const size = maxDim <= 6 ? 70 : maxDim <= 8 ? 60 : maxDim <= 10 ? 52 : 44;
+  const ideal = Math.floor(available / maxDim);
+  const size = Math.min(72, Math.max(32, ideal));
   document.documentElement.style.setProperty('--cell', size+'px');
 }
 
@@ -1092,6 +1114,29 @@ function applyWindowTool(event, r, c) {
   updateOneBuilderCell(r, c);
 }
 
+// Returns true if this cell is the top-left anchor of its room (where label goes)
+function isRoomAnchor(r, c) {
+  const cd = cell(r, c);
+  if (!cd || !cd.roomId) return false;
+  const rId = cd.roomId;
+  function sameRoom(nr, nc) {
+    const n = cell(nr, nc);
+    return n && n.active && n.roomId === rId;
+  }
+  return !sameRoom(r-1, c) && !sameRoom(r, c-1);
+}
+
+function appendRoomLabel(el, r, c) {
+  if (!isRoomAnchor(r, c)) return;
+  const cd = cell(r, c);
+  const rm = getRoom(cd.roomId);
+  if (!rm) return;
+  const lbl = document.createElement('div');
+  lbl.className = 'room-label';
+  lbl.textContent = rm.name;
+  el.appendChild(lbl);
+}
+
 function updateOneBuilderCell(r,c) {
   const grid = document.querySelector('#builder-grid-wrap .grid');
   if(!grid) return;
@@ -1123,6 +1168,7 @@ function renderBuilderCell(el,r,c) {
     if (obj) el.appendChild(makeObjSVG(r, c, obj.id, 'overlay-svg'));
   }
 
+  appendRoomLabel(el, r, c);
   cd.windows.forEach(dir=>{ const w=document.createElement('div'); w.className=`win-bar win-${dir}`; el.appendChild(w); });
 }
 
@@ -1318,6 +1364,7 @@ function renderPlayCell(el,r,c,blockedRows,blockedCols) {
   }
   // else: empty cell, blank floor
 
+  appendRoomLabel(el, r, c);
   cd.windows.forEach(dir=>{const w=document.createElement('div');w.className=`win-bar win-${dir}`;el.appendChild(w);});
 }
 
