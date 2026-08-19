@@ -1529,10 +1529,17 @@ function checkWin() {
 function rivela() {
   if (S.victimIdx === null) return;
 
-  // Count empty playable cells (excluding victim slot if already placed)
+  // Count empty cells that are not blocked by sudoku row/col constraints
+  // (same logic as refreshPlayGrid: ignore rows/cols already occupied by a suspect)
+  const blockedRows = new Set(), blockedCols = new Set();
+  for (let r=0;r<S.rows;r++) for (let c=0;c<S.cols;c++) {
+    const p=S.placements[r][c];
+    if (p!==null && p!==VICTIM_PLACED) { blockedRows.add(r); blockedCols.add(c); }
+  }
   const emptyCells = [];
   for (let r=0;r<S.rows;r++) for (let c=0;c<S.cols;c++) {
-    if (isPlayable(r,c) && S.placements[r][c] === null) emptyCells.push({r,c});
+    if (isPlayable(r,c) && S.placements[r][c] === null && !blockedRows.has(r) && !blockedCols.has(c))
+      emptyCells.push({r,c});
   }
 
   if (emptyCells.length !== 1) return; // silently do nothing
