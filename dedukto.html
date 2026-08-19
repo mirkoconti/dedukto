@@ -664,6 +664,10 @@ ovr_sedia: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
 
 };
 
+// ── Sidebar mobile ──
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+function closeSidebar()  { document.getElementById('sidebar').classList.remove('open'); }
+
 // ════════════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════════════
@@ -837,6 +841,7 @@ function gotoPhase(n) {
   ['sb1','sb2','sb3'].forEach((id,i) => document.getElementById(id).classList.toggle('hidden',i+1!==n));
   ['dot1','dot2','dot3'].forEach((id,i) => document.getElementById(id).classList.toggle('active',i<n));
   S.phase = n;
+  closeSidebar();
 }
 
 function gotoPhase2() {
@@ -1414,16 +1419,6 @@ function renderLegend() {
 document.addEventListener('mouseup', ()=>{ S.isDragging=false; });
 document.addEventListener('touchend', ()=>{ S.isDragging=false; });
 
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-}
-
-// Close sidebar when changing phase on mobile
-const _origGotoPhase = gotoPhase;
-function gotoPhase(n) {
-  _origGotoPhase(n);
-  document.getElementById('sidebar').classList.remove('open');
-}
 // Populate predefined objects
 S.objects = [...PRESET_OBSTACLES, ...PRESET_OVERLAYS];
 renderSetup();
