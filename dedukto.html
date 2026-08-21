@@ -720,6 +720,42 @@ ovr_sedia: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
   <rect x="78" y="86" width="9" height="10" rx="3" fill="#5C3D2E" opacity="0.7"/>
 </svg>`,
 
+// Sedia verticale — schienale (top cell)
+ovr_sedia_head_v: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="14" y="10" width="72" height="28" rx="7" fill="#8B6344" stroke="#6B4F2E" stroke-width="3"/>
+  <rect x="9" y="50" width="82" height="55" rx="0" fill="#A07850" stroke="#6B4F2E" stroke-width="3"/>
+  <rect x="15" y="56" width="70" height="49" rx="0" fill="#B89060"/>
+  <rect x="24" y="42" width="13" height="12" rx="2" fill="#6B4F2E"/>
+  <rect x="63" y="42" width="13" height="12" rx="2" fill="#6B4F2E"/>
+</svg>`,
+
+// Sedia verticale — seduta (bottom cell)
+ovr_sedia_foot_v: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="9" y="0" width="82" height="72" rx="0" fill="#A07850" stroke="#6B4F2E" stroke-width="3"/>
+  <rect x="15" y="0" width="70" height="66" rx="0" fill="#B89060"/>
+  <rect x="22" y="10" width="56" height="48" rx="4" fill="rgba(255,255,255,0.08)"/>
+  <rect x="13" y="76" width="9" height="18" rx="3" fill="#5C3D2E" opacity="0.7"/>
+  <rect x="78" y="76" width="9" height="18" rx="3" fill="#5C3D2E" opacity="0.7"/>
+</svg>`,
+
+// Sedia orizzontale — schienale (left cell)
+ovr_sedia_head_h: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="10" y="14" width="28" height="72" rx="7" fill="#8B6344" stroke="#6B4F2E" stroke-width="3"/>
+  <rect x="50" y="9" width="55" height="82" rx="0" fill="#A07850" stroke="#6B4F2E" stroke-width="3"/>
+  <rect x="56" y="15" width="49" height="70" rx="0" fill="#B89060"/>
+  <rect x="42" y="24" width="12" height="13" rx="2" fill="#6B4F2E"/>
+  <rect x="42" y="63" width="12" height="13" rx="2" fill="#6B4F2E"/>
+</svg>`,
+
+// Sedia orizzontale — seduta (right cell)
+ovr_sedia_foot_h: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="9" width="72" height="82" rx="0" fill="#A07850" stroke="#6B4F2E" stroke-width="3"/>
+  <rect x="0" y="15" width="66" height="70" rx="0" fill="#B89060"/>
+  <rect x="10" y="22" width="48" height="56" rx="4" fill="rgba(255,255,255,0.08)"/>
+  <rect x="76" y="13" width="18" height="9" rx="3" fill="#5C3D2E" opacity="0.7"/>
+  <rect x="76" y="78" width="18" height="9" rx="3" fill="#5C3D2E" opacity="0.7"/>
+</svg>`,
+
 };
 
 // ── Sidebar mobile ──
@@ -796,9 +832,13 @@ function computeElim() {
 // Returns the bounding box of the connected group of same-objId cells touching (r,c)
 function getConnectedBounds(r, c, objId) {
   const key = (r,c) => r+','+c;
+  const originRoom = cell(r,c)?.roomId ?? null;
   const isMatch = (r,c) => {
     const cd = cell(r,c);
-    return cd && (cd.obstId===objId || cd.overlayId===objId);
+    if (!cd) return false;
+    if (!(cd.obstId===objId || cd.overlayId===objId)) return false;
+    // must be same room (null rooms are considered different per-cell)
+    return cd.roomId === originRoom;
   };
   const visited = new Set();
   const queue = [[r,c]];
@@ -850,6 +890,23 @@ function makeObjSVG(r, c, objId, wrapClass) {
     }
     // Single cell fallback
     wrap.innerHTML = OBJ_SVG['ovr_letto'];
+    return wrap;
+  }
+
+  // ── Sedia: head/foot halves like letto ──
+  if (objId === 'ovr_sedia') {
+    const isMulti = b.totalR > 1 || b.totalC > 1;
+    if (isMulti) {
+      let key;
+      if (b.totalR >= b.totalC) {
+        key = relR === 0 ? 'ovr_sedia_head_v' : 'ovr_sedia_foot_v';
+      } else {
+        key = relC === 0 ? 'ovr_sedia_head_h' : 'ovr_sedia_foot_h';
+      }
+      wrap.innerHTML = OBJ_SVG[key];
+      return wrap;
+    }
+    wrap.innerHTML = OBJ_SVG['ovr_sedia'];
     return wrap;
   }
 
@@ -1018,9 +1075,15 @@ function renderSetup() {
   });
 }
 
+function syncSuspectNames() {
+  document.querySelectorAll('.susp-inp').forEach((inp, i) => {
+    if (S.suspects[i] !== undefined) S.suspects[i] = inp.value;
+  });
+}
+
 function addSuspect() {
   if (S.suspects.length>=9) { alert('Max 9!'); return; }
-  // Insert new suspect before the last (victim), so victim stays last
+  syncSuspectNames();
   S.suspects.splice(S.suspects.length-1, 0, '');
   renderSetup();
   document.querySelectorAll('.susp-inp')[S.suspects.length-2].focus();
@@ -1028,7 +1091,8 @@ function addSuspect() {
 
 function rmSusp(i) {
   if (S.suspects.length<=2) return;
-  if (i === S.suspects.length-1) return; // can't remove the victim (last)
+  if (i === S.suspects.length-1) return;
+  syncSuspectNames();
   S.suspects.splice(i,1);
   renderSetup();
 }
