@@ -1269,6 +1269,7 @@ function renderBuilderCell(el,r,c) {
     el.className='cell obstacle';
     el.style.cssText = obj ? obstacleStyle(r,c,obj) : '';
     if (obj) el.appendChild(makeObjSVG(r, c, obj.id, 'furn-svg'));
+    appendRoomLabel(el, r, c);
     cd.windows.forEach(dir=>{ const w=document.createElement('div'); w.className=`win-bar win-${dir}`; el.appendChild(w); });
     return;
   }
@@ -1441,6 +1442,7 @@ function renderPlayCell(el,r,c,blockedRows,blockedCols) {
     el.className='cell obstacle';
     el.style.cssText = obj ? obstacleStyle(r,c,obj) : '';
     if(obj) el.appendChild(makeObjSVG(r, c, obj.id, 'furn-svg'));
+    appendRoomLabel(el, r, c);
     cd.windows.forEach(dir=>{const w=document.createElement('div');w.className=`win-bar win-${dir}`;el.appendChild(w);});
     return;
   }
