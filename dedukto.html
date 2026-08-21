@@ -893,19 +893,8 @@ function makeObjSVG(r, c, objId, wrapClass) {
     return wrap;
   }
 
-  // ── Sedia: head/foot halves like letto ──
+  // ── Sedia: sempre cella singola, mai componibile ──
   if (objId === 'ovr_sedia') {
-    const isMulti = b.totalR > 1 || b.totalC > 1;
-    if (isMulti) {
-      let key;
-      if (b.totalR >= b.totalC) {
-        key = relR === 0 ? 'ovr_sedia_head_v' : 'ovr_sedia_foot_v';
-      } else {
-        key = relC === 0 ? 'ovr_sedia_head_h' : 'ovr_sedia_foot_h';
-      }
-      wrap.innerHTML = OBJ_SVG[key];
-      return wrap;
-    }
     wrap.innerHTML = OBJ_SVG['ovr_sedia'];
     return wrap;
   }
